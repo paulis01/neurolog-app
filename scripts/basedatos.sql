@@ -45,13 +45,14 @@ DROP TABLE IF EXISTS profiles CASCADE;
 -- ================================================================
 -- 2. CREAR TABLAS PRINCIPALES
 -- ================================================================
-
+CREATE TYPE user_role AS ENUM ('parent', 'teacher', 'specialist', 'admin');
+CREATE TYPE relationship_role AS ENUM ('parent', 'teacher', 'specialist', 'observer', 'family');
 -- TABLA: profiles (usuarios del sistema)
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
-  role TEXT CHECK (role IN ('parent', 'teacher', 'specialist', 'admin')) DEFAULT 'parent',
+  role user_role NOT NULL DEFAULT 'parent'
   avatar_url TEXT,
   phone TEXT,
   is_active BOOLEAN DEFAULT TRUE,
@@ -106,7 +107,7 @@ CREATE TABLE user_child_relations (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   child_id UUID REFERENCES children(id) ON DELETE CASCADE NOT NULL,
-  relationship_type TEXT CHECK (relationship_type IN ('parent', 'teacher', 'specialist', 'observer', 'family')) NOT NULL,
+  relationship_type relationship_role NOT NULL;,
   can_edit BOOLEAN DEFAULT FALSE,
   can_view BOOLEAN DEFAULT TRUE,
   can_export BOOLEAN DEFAULT FALSE,
@@ -220,7 +221,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'parent')
+    COALESCE(NEW.raw_user_meta_data->>'role', 'parent')::profile_role
   );
   RETURN NEW;
 END;
@@ -323,7 +324,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE VIEW user_accessible_children AS
 SELECT 
   c.*,
-  'parent'::TEXT as relationship_type,
+  'parent'::relationship_role AS relationship_type
   true as can_edit,
   true as can_view,
   true as can_export,
