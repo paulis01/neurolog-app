@@ -47,6 +47,13 @@ DROP TABLE IF EXISTS profiles CASCADE;
 -- ================================================================
 CREATE TYPE user_role AS ENUM ('parent', 'teacher', 'specialist', 'admin');
 CREATE TYPE relationship_role AS ENUM ('parent', 'teacher', 'specialist', 'observer', 'family');
+
+-- Primero: para intensity_level
+CREATE TYPE intensity_level AS ENUM ('low', 'medium', 'high');
+
+-- Después: para risk_level
+CREATE TYPE risk_level AS ENUM ('low', 'medium', 'high', 'critical');
+
 -- TABLA: profiles (usuarios del sistema)
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
@@ -131,7 +138,7 @@ CREATE TABLE daily_logs (
   title TEXT NOT NULL CHECK (length(trim(title)) >= 2),
   content TEXT NOT NULL,
   mood_score INTEGER CHECK (mood_score >= 1 AND mood_score <= 10),
-  intensity_level TEXT CHECK (intensity_level IN ('low', 'medium', 'high')) DEFAULT 'medium',
+  intensity_level intensity_level NOT NULL DEFAULT 'medium';
   logged_by UUID REFERENCES profiles(id) NOT NULL,
   log_date DATE DEFAULT CURRENT_DATE,
   is_private BOOLEAN DEFAULT FALSE,
@@ -165,7 +172,7 @@ CREATE TABLE audit_logs (
   ip_address INET,
   user_agent TEXT,
   session_id TEXT,
-  risk_level TEXT CHECK (risk_level IN ('low', 'medium', 'high', 'critical')) DEFAULT 'low',
+  risk_level risk_level NOT NULL DEFAULT 'low';
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -308,7 +315,7 @@ BEGIN
       'details', action_details,
       'timestamp', NOW()
     ),
-    'medium'
+    'medium'::intensity_level
   );
 EXCEPTION
   WHEN OTHERS THEN
