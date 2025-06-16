@@ -478,7 +478,7 @@ BEGIN
   -- Contar tablas
   SELECT COUNT(*) INTO table_count
   FROM information_schema.tables 
-  WHERE table_schema = 'public' 
+  WHERE table_schema = schemaname 
     AND table_name IN ('profiles', 'children', 'user_child_relations', 'daily_logs', 'categories', 'audit_logs');
   
   result := result || 'Tablas creadas: ' || table_count || '/6' || E'\n';
