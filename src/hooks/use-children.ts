@@ -168,145 +168,153 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
   // ================================================================
   // FUNCIÓN CREATE CHILD OPTIMIZADA
   // ================================================================
-
-  const createChild = useCallback(async (childData: ChildInsert): Promise<Child> => {
-    if (!userId) {
-      throw new Error('Usuario no autenticado');
-    }
-
-    try {
+  const createChild = useCallback(
+    async (childData: Readonly<ChildInsert>): Promise<Child> => {
+      if (!userId) throw new Error('Usuario no autenticado');
+  
       setLoading(true);
       setError(null);
       console.log('🚀 Creating child...');
-
-      // Verificar sesión
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session) {
-        throw new Error('Sesión inválida. Inicia sesión nuevamente.');
-      }
-
-      // Preparar datos con valores por defecto seguros
-      const insertData = {
-        name: childData.name.trim(),
-        created_by: userId,
-        is_active: true,
-        birth_date: childData.birth_date?.trim() || null,
-        diagnosis: childData.diagnosis?.trim() || null,
-        notes: childData.notes?.trim() || null,
-        avatar_url: childData.avatar_url?.trim() || null,
-        emergency_contact: Array.isArray(childData.emergency_contact) ? childData.emergency_contact : [],
-        medical_info: {
-          allergies: [],
-          medications: [],
-          conditions: [],
-          emergency_notes: '',
-          ...childData.medical_info
-        },
-        educational_info: {
-          school: '',
-          grade: '',
-          teacher: '',
-          iep_goals: [],
-          accommodations: [],
-          ...childData.educational_info
-        },
-        privacy_settings: {
-          share_with_specialists: true,
-          share_progress_reports: true,
-          allow_photo_sharing: false,
-          data_retention_months: 36,
-          ...childData.privacy_settings
-        }
-      };
-
-      // Insertar niño
-      const { data: newChild, error: insertError } = await supabase
-        .from('children')
-        .insert(insertData)
-        .select(`
-          *,
-          creator:profiles!created_by (
-            full_name
-          )
-        `)
-        .single();
-
-      if (insertError) {
-        console.error('❌ Insert error:', insertError);
-        
-        if (insertError.code === '42501') {
-          throw new Error('Sin permisos para crear niños. Verifica la configuración.');
-        } else if (insertError.code === '23505') {
-          throw new Error('Ya existe un niño con datos similares.');
-        } else if (insertError.code === '23514') {
-          throw new Error('Los datos no cumplen con las validaciones requeridas.');
-        } else {
-          throw new Error(`Error al crear niño: ${insertError.message}`);
-        }
-      }
-
-      if (!newChild) {
-        throw new Error('No se recibieron datos después de crear el niño');
-      }
-
-      console.log('✅ Child created successfully:', newChild.name);
-
-      // Crear relación automática padre/madre (opcional)
+  
       try {
-        const { error: relationError } = await supabase
-          .from('user_child_relations')
-          .insert({
-            user_id: userId,
-            child_id: newChild.id,
-            relationship_type: 'parent',
-            can_edit: true,
-            can_view: true,
-            can_export: true,
-            can_invite_others: true,
-            granted_by: userId,
-            granted_at: new Date().toISOString(),
-            is_active: true,
-            notes: 'Relación creada automáticamente como creador',
-            notification_preferences: {
-              email_alerts: true,
-              weekly_reports: true
-            }
-          });
-
-        if (relationError) {
-          console.warn('⚠️ Relation creation failed (child created successfully):', relationError);
-        } else {
-          console.log('✅ Parent relation created successfully');
-        }
-      } catch (relationError) {
-        console.warn('⚠️ Relation error (ignored):', relationError);
+        await validateSession();
+        const insertData = buildInsertData(childData, userId);
+  
+        const newChild = await insertChild(insertData);
+        if (!newChild) throw new Error('No se recibieron datos después de crear el niño');
+  
+        console.log('✅ Child created successfully:', newChild.name);
+  
+        await tryCreateRelation(newChild.id);
+        await fetchChildren();
+        await tryAuditChildCreation(newChild.id, newChild.name);
+  
+        return newChild;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error al crear niño';
+        console.error('❌ Final error in createChild:', message);
+        setError(message);
+        throw new Error(message);
+      } finally {
+        setLoading(false);
       }
-
-      // Refrescar lista
-      await fetchChildren();
-      
-      // Auditoría
-      try {
-        await auditSensitiveAccess(
-          'CREATE_CHILD',
-          newChild.id,
-          `Created child: ${newChild.name}`
-        );
-      } catch (auditError) {
-        console.warn('⚠️ Audit error (ignored):', auditError);
-      }
-
-      return newChild;
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al crear niño';
-      console.error('❌ Final error in createChild:', errorMessage);
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
+    },
+    [userId, supabase, fetchChildren]
+  );
+  
+  // 👇 Funciones auxiliares extraídas para reducir complejidad 👇
+  
+  async function validateSession() {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      throw new Error('Sesión inválida. Inicia sesión nuevamente.');
     }
-  }, [userId, supabase, fetchChildren]);
+    return session;
+  }
+  
+  function buildInsertData(childData: Readonly<ChildInsert>, userId: string) {
+    return {
+      name: childData.name.trim(),
+      created_by: userId,
+      is_active: true,
+      birth_date: childData.birth_date?.trim() ?? null,
+      diagnosis: childData.diagnosis?.trim() ?? null,
+      notes: childData.notes?.trim() ?? null,
+      avatar_url: childData.avatar_url?.trim() ?? null,
+      emergency_contact: Array.isArray(childData.emergency_contact) ? childData.emergency_contact : [],
+      medical_info: {
+        allergies: [],
+        medications: [],
+        conditions: [],
+        emergency_notes: '',
+        ...childData.medical_info
+      },
+      educational_info: {
+        school: '',
+        grade: '',
+        teacher: '',
+        iep_goals: [],
+        accommodations: [],
+        ...childData.educational_info
+      },
+      privacy_settings: {
+        share_with_specialists: true,
+        share_progress_reports: true,
+        allow_photo_sharing: false,
+        data_retention_months: 36,
+        ...childData.privacy_settings
+      }
+    };
+  }
+  
+  async function insertChild(data: any) {
+    const { data: newChild, error } = await supabase
+      .from('children')
+      .insert(data)
+      .select(`
+        *,
+        creator:profiles!created_by (
+          full_name
+        )
+      `)
+      .single();
+  
+    if (error) handleInsertError(error);
+    return newChild;
+  }
+  
+  function handleInsertError(error: any) {
+    console.error('❌ Insert error:', error);
+    switch (error.code) {
+      case '42501':
+        throw new Error('Sin permisos para crear niños. Verifica la configuración.');
+      case '23505':
+        throw new Error('Ya existe un niño con datos similares.');
+      case '23514':
+        throw new Error('Los datos no cumplen con las validaciones requeridas.');
+      default:
+        throw new Error(`Error al crear niño: ${error.message}`);
+    }
+  }
+  
+  async function tryCreateRelation(childId: string) {
+    try {
+      const { error } = await supabase.from('user_child_relations').insert({
+        user_id: userId,
+        child_id: childId,
+        relationship_type: 'parent',
+        can_edit: true,
+        can_view: true,
+        can_export: true,
+        can_invite_others: true,
+        granted_by: userId,
+        granted_at: new Date().toISOString(),
+        is_active: true,
+        notes: 'Relación creada automáticamente como creador',
+        notification_preferences: {
+          email_alerts: true,
+          weekly_reports: true
+        }
+      });
+  
+      if (error) {
+        console.warn('⚠️ Relation creation failed (child created successfully):', error);
+      } else {
+        console.log('✅ Parent relation created successfully');
+      }
+    } catch (error) {
+      console.warn('⚠️ Relation error (ignored):', error);
+    }
+  }
+  
+  async function tryAuditChildCreation(childId: string, name: string) {
+    try {
+      await auditSensitiveAccess('CREATE_CHILD', childId, `Created child: ${name}`);
+    } catch (error) {
+      console.warn('⚠️ Audit error (ignored):', error);
+    }
+  }
+  
 
   // ================================================================
   // FUNCIÓN UPDATE CHILD
