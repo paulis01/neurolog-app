@@ -161,10 +161,10 @@ export default function ReportsPage() {
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-2 block">Período</label>
+              <label htmlFor='periodo' className="text-sm font-medium mb-2 block">Período</label>
               <DatePickerWithRange 
                 date={dateRange}
-                onDateChange={setDateRange}
+                setDate={setDateRange}
               />
             </div>
 
