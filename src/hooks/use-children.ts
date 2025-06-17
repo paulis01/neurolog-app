@@ -36,6 +36,7 @@ interface UseChildrenReturn {
   filterChildren: (filters: ChildFilters) => ChildWithRelation[];
   canEditChild: (childId: string) => Promise<boolean>;
   canAccessChild: (childId: string) => Promise<boolean>;
+  
 }
 
 // ================================================================
@@ -45,7 +46,7 @@ interface UseChildrenReturn {
 export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn {
   const {
     includeInactive = false,
-    autoRefresh = true,
+    
     realtime = true
   } = options;
 
@@ -65,7 +66,7 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
 
   // Generar ID único para canal
   const channelId = useMemo(() => {
-    return `children-${userId || 'anonymous'}-${Date.now()}`;
+    return `children-${userId ?? 'anonymous'}-${Date.now()}`;
   }, [userId]);
 
   // ================================================================
@@ -108,10 +109,10 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
       notes: child.notes,
       is_active: child.is_active!,
       avatar_url: child.avatar_url,
-      emergency_contact: child.emergency_contact || [],
-      medical_info: child.medical_info || {},
-      educational_info: child.educational_info || {},
-      privacy_settings: child.privacy_settings || {
+      emergency_contact: child.emergency_contact ?? [],
+      medical_info: child.medical_info ?? {},
+      educational_info: child.educational_info ?? {},
+      privacy_settings: child.privacy_settings ?? {
         share_with_specialists: true,
         share_progress_reports: true,
         allow_photo_sharing: false,
@@ -133,7 +134,7 @@ export function useChildren(options: UseChildrenOptions = {}): UseChildrenReturn
       is_relation_active: true,
       relation_created_at: child.granted_at!,
       relation_expires_at: child.expires_at,
-      creator_name: child.creator_name || 'Usuario desconocido'
+      creator_name: child.creator_name ?? 'Usuario desconocido'
     }));
 
     setChildren(transformedChildren);

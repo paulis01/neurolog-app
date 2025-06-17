@@ -170,13 +170,21 @@ export interface ChildWithRelation extends Child {
   can_export: boolean;
   can_invite_others: boolean;
   granted_at: string;
-  expires_at?: string | null;
+  expires_at?: string | null;   
   is_relation_active: boolean;
   relation_created_at: string;
   relation_expires_at?: string | null;
   creator_name: string;
 }
 
+export interface UserRelationSummary extends Pick<UserChildRelation, 'user_id' | 'relationship_type' | 'can_edit' | 'can_export'> {
+  user_email?: string;
+  user_name?: string;
+}
+
+export interface ChildWithRelations extends Child {
+  user_relations: UserRelationSummary[];
+}
 // ================================================================
 // CATEGORY TYPES
 // ================================================================

@@ -22,11 +22,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuth } from '@/components/providers/AuthProvider';
+
 import { useChildren } from '@/hooks/use-children';
 import { useLogs } from '@/hooks/use-logs';
 import type { 
-  ChildWithRelation
+  ChildWithRelations,
 } from '@/types';
 import { 
   EditIcon,
@@ -46,9 +46,10 @@ import {
   GraduationCapIcon,
   ShieldIcon,
   ClockIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
 } from 'lucide-react';
 import { format, differenceInYears, subMonths } from 'date-fns';
+import { subWeeks } from 'date-fns/subWeeks';
 import { es } from 'date-fns/locale';
 
 export default function ChildDetailPage() {
@@ -59,15 +60,28 @@ export default function ChildDetailPage() {
   const { loading: childLoading, getChildById } = useChildren();
   const { logs } = useLogs({ childId });
   
-  const [child, setChild] = useState<ChildWithRelation | null>(null);
+  const [child, setChild] = useState<ChildWithRelations | null>(null);
+  
+  
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     if (childId && !childLoading) {
       const foundChild = getChildById(childId);
-      setChild(foundChild || null);
+  
+      if (foundChild) {
+        const withRelations = {
+          ...(foundChild as any),
+          user_relations: (foundChild as any).user_relations ?? [],
+        } as ChildWithRelations;
+  
+        setChild(withRelations);
+      } else {
+        setChild(null);
+      }
     }
   }, [childId, childLoading, getChildById]);
+  
 
   if (childLoading) {
     return (
@@ -235,7 +249,7 @@ export default function ChildDetailPage() {
             <div className="flex items-center space-x-2">
               <UsersIcon className="h-5 w-5 text-gray-600" />
               <div>
-                <p className="text-2xl font-bold text-gray-900">{child.user_relations?.length || 0}</p>
+                <p className="text-2xl font-bold text-gray-900">{child.user_relations?.length ?? 0}</p>
                 <p className="text-xs text-gray-600">Usuarios</p>
               </div>
             </div>
@@ -268,7 +282,7 @@ export default function ChildDetailPage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-start space-x-4">
                     <Avatar className="h-16 w-16">
-                      <AvatarImage src={child.avatar_url} alt={child.name} />
+                      <AvatarImage src={child.avatar_url ?? undefined}  alt={child.name} />
                       <AvatarFallback className="bg-blue-100 text-blue-600 text-xl font-bold">
                         {child.name.charAt(0)}
                       </AvatarFallback>
@@ -320,12 +334,12 @@ export default function ChildDetailPage() {
                     <div key={log.id} className="flex items-start space-x-3 py-3 border-b border-gray-100 last:border-0">
                       <div 
                         className="w-3 h-3 rounded-full mt-2"
-                        style={{ backgroundColor: log.category_color }}
+                        style={{ backgroundColor: log.category?.color }}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-gray-900 truncate">
-                            {log.category_name || 'Sin categoría'}
+                            {log.category?.name ?? 'Sin categoría'}
                           </p>
                           <span className="text-xs text-gray-500">
                             {format(new Date(log.created_at), 'dd MMM, HH:mm', { locale: es })}
@@ -392,7 +406,7 @@ export default function ChildDetailPage() {
                         </Avatar>
                         <div>
                           <p className="text-sm font-medium text-gray-900">
-                            {relation.user_name || relation.user_email}
+                            {relation.user_name ?? relation.user_email}
                           </p>
                           <Badge 
                             variant="secondary" 
@@ -467,7 +481,21 @@ export default function ChildDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* TODO: Implementar lista detallada de logs con filtros */}
+            {logs.length === 0 ? (
+              <p className="text-gray-500">No hay registros disponibles.</p>
+            ) : (
+              <div className="space-y-4">
+                {logs.map((log) => (
+                  <div key={log.id} className="p-4 border rounded shadow-sm">
+                    <p className="font-semibold text-blue-600">{log.title}</p>
+                    <p className="text-sm text-gray-600">
+                      {new Date(log.created_at).toLocaleDateString('es-ES')}
+                    </p>
+                    <p className="text-gray-800">{log.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
               <p className="text-gray-500">Vista detallada de registros próximamente...</p>
             </CardContent>
           </Card>
@@ -483,7 +511,7 @@ export default function ChildDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* TODO: Implementar gráficos de progreso */}
+
               <p className="text-gray-500">Gráficos de progreso próximamente...</p>
             </CardContent>
           </Card>
@@ -499,7 +527,7 @@ export default function ChildDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* TODO: Implementar gestión de equipo */}
+              
               <p className="text-gray-500">Gestión de equipo próximamente...</p>
             </CardContent>
           </Card>
@@ -515,7 +543,7 @@ export default function ChildDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* TODO: Implementar configuración específica */}
+              
               <p className="text-gray-500">Configuración específica próximamente...</p>
             </CardContent>
           </Card>
